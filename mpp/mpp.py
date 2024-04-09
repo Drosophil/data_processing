@@ -15,7 +15,10 @@ class MoleculeProcessingException(Exception):
 
 class MolecularPropertiesProcessor:
     '''Molecular data processing utility
-    input parameters: input_file, output_file, smiles_column_name, molecule_id_column_name
+    input parameters: input_file, output_file, smiles_column_name, molecule_id_column_name, hyperthreading
+    reads the whole file prior to computing
+    if hyperthreading=True then computes on cpu_count()//2 cores, to compensate the hyperthreading on intel CPUs
+    (otherwise half of processes will simply wait for the available physical core slowing down the computation).
     '''
     def __init__(
             self,
@@ -23,16 +26,16 @@ class MolecularPropertiesProcessor:
             output_file_name: str,
             smiles_column: str,
             molecule_id_column: str,
+            hyperthreading=True,
     ):
         self.start_time = time()
         current_time = ctime()
         logger.info(f"<<<<<<< NEW RUN >>>>>>>  {current_time}")
         logger.info(f"DATA: <<<<<<< NEW RUN >>>>>>>  {current_time}")
         logger.info(f"PROCESS: <<<<<<< NEW RUN >>>>>>> {current_time}")
-        self.mols_df = pd.read_csv(input_file_path)
-
+        self.hyperthreading = hyperthreading
+        self.mols_df = pd.read_csv(input_file_path)  # this class reads the file prior to computing
         self.output_file_name = output_file_name
-
         self.smiles_col = self._column_finder("^" + smiles_column + "$")
         self.mol_name_col = self._column_finder("^" + molecule_id_column + "$")
         logger.info(f"File read took {time() - self.start_time} seconds")
@@ -123,7 +126,9 @@ class MolecularPropertiesProcessor:
         start_time = time()
         logger.info("Entering _compute_molecule_properties()")
         # const_size_of_chunks = 5
-        max_amount_of_p = multiprocessing.cpu_count() // 2  # to avoid hyperthreading
+        max_amount_of_p = multiprocessing.cpu_count()
+        if self.hyperthreading:
+            max_amount_of_p //= 2  # to avoid hyperthreading
         logger.info(f"Max CPUs = {max_amount_of_p}")
 
         amount_of_chunk_df = max_amount_of_p  # one core left for the main process, it seems faster like that
@@ -144,7 +149,7 @@ class MolecularPropertiesProcessor:
             p_df = pool.starmap(self._compute_molecule_properties_chunk,
                             [(list_of_chunks[number-1], number) for number in range(1, amount_of_chunk_df + 1)])
 
-        logger.info(f"Pool has finished, result type: {type(p_df)}")
+        logger.info(f"Pool has finished")
 
         result = pd.concat(p_df)
         logger.info(f"Main compute function worked {time() - start_time} seconds")
