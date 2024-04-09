@@ -5,6 +5,7 @@ from time import time
 import pandas as pd
 import numpy as np
 from rdkit.Chem import AllChem, Descriptors
+from mylog import logger
 import math
 
 
@@ -22,12 +23,12 @@ class MolecularPropertiesProcessor:
     ):
         start_time = time()
         self.mols_df = pd.read_csv(input_file_path)
-        print(self.mols_df)
+        # print(self.mols_df)
         self.output_file_name = output_file_name
 
         self.smiles_col = self._column_finder("^clean_smiles$")
         self.mol_name_col = self._column_finder("^inchikey$")
-        print(f"File read took {time() - start_time} seconds")
+        logger.info(f"File read took {time() - start_time} seconds")
 
     def _column_finder(self, match_str):
         matcher = re.compile(match_str, re.IGNORECASE)
@@ -37,12 +38,12 @@ class MolecularPropertiesProcessor:
         return column_to_find
 
     def _prepare_data(self):
-        print("Preparing data")
+        logger.info("Preparing data")
         self.mols_df = self.mols_df[
             [self.smiles_col, self.mol_name_col]
             + list(self.mols_df.columns.difference([self.smiles_col, self.mol_name_col]))
             ]
-        print("dropping duplicates")
+        logger.info("dropping duplicates")
         self.mols_df.drop_duplicates(subset=self.mol_name_col, inplace=True)
 
     def _compute_molecule_properties_chunk(
@@ -51,15 +52,24 @@ class MolecularPropertiesProcessor:
     ) -> pd.DataFrame:
         """ Compute molecule properties for chunk dataframe """
 
-        print("Entering _compute_molecule_properties_chunk")
-        print("started migration")
+        logger.info("PROCESS: new process started")
+        logger.info("PROCESS: started migration")
 
         start_time = time()
 
         # TODO: alter the lambda func and log corrupted rows
+        def get_mol_from_smiles_and_verify(input_s):
+            output_mol = AllChem.MolFromSmiles(input_s)
+            if output_mol:
+                return output_mol
+            else:
+                logger.warning(f"DATA: SMILES {input_s}")
+                return output_mol
 
-        chunk_df["mol"] = chunk_df[self.smiles_col].apply(lambda s: AllChem.MolFromSmiles(s))
-        print("Migrated to molecules")
+        chunk_df["mol"] = chunk_df[self.smiles_col].apply(lambda s: get_mol_from_smiles_and_verify(s))
+
+        logger.info("PROCESS: Migrated to molecules")
+
         chunk_df.dropna(inplace=True)  # drop rows with None values in Mol column
 
         mol_props_funcs = {
@@ -78,7 +88,7 @@ class MolecularPropertiesProcessor:
         }
         mol_props_to_compute = list(mol_props_funcs.keys())
 
-        print("applying mol lambda functions")
+        logger.info("PROCESS: applying mol lambda functions")
 
         chunk_df[mol_props_to_compute] = chunk_df.apply(
             lambda row: [mol_props_funcs[prop](row["mol"]) for prop in mol_props_to_compute],
@@ -86,12 +96,13 @@ class MolecularPropertiesProcessor:
             result_type="expand"
         )
 
-        print("Mol functions applied")
+        logger.info("PROCESS: Mol functions applied")
 
         chunk_df.drop(columns=["mol"], inplace=True)
         chunk_df.set_index(self.mol_name_col, inplace=True)
+        stop_time = time() - start_time
 
-        print(f"Process finished in {time() - start_time} seconds")
+        logger.info(f"PROCESS: Process finished in {stop_time} seconds")
 
         return chunk_df
 
@@ -101,10 +112,10 @@ class MolecularPropertiesProcessor:
         in chunks
         """
         start_time = time()
-        print("Entering _compute_molecule_properties()")
+        logger.info("Entering _compute_molecule_properties()")
         # const_size_of_chunks = 5
         max_amount_of_p = multiprocessing.cpu_count() // 2  # to avoid hyperthreading
-        print(f"Max CPUs = {max_amount_of_p}")
+        logger.info(f"Max CPUs = {max_amount_of_p}")
 
         amount_of_chunk_df = max_amount_of_p  # math.ceil(len(self.mols_df) / const_size_of_chunks)
 
@@ -113,20 +124,20 @@ class MolecularPropertiesProcessor:
         elif amount_of_chunk_df == 0:
             amount_of_chunk_df = 1
 
-        print("numpy stuff")
+        logger.info("numpy stuff")
 
         list_of_chunks = np.array_split(self.mols_df, amount_of_chunk_df)
 
-        print("setting the pool")
+        logger.info("setting the pool")
 
         with multiprocessing.Pool(processes=amount_of_chunk_df) as pool:
             p_df = pool.map(self._compute_molecule_properties_chunk, list_of_chunks)
 
-        print(f"Pool has finished, result type: {type(p_df)}")
+        logger.info(f"Pool has finished, result type: {type(p_df)}")
 
         # list_of_p = [p for p in p_df]
         result = pd.concat(p_df)
-        print(f"Main compute function worked {time() - start_time} seconds")
+        logger.info(f"Main compute function worked {time() - start_time} seconds")
         return result
 
     def process_data(self) -> pd.DataFrame:
