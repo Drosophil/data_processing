@@ -93,7 +93,7 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
                         out_chunk = self.result_chunks.get()
                         if out_chunk[0]:
                             logger.info(f"PROCESS: writing chunk {out_chunk[1]}")
-                            out_chunk[2].to_csv(self.output_file_name, mode= 'a', index=False)
+                            out_chunk[2].to_csv(self.output_file_name, mode= 'a')
                         # else:
                         #     if stop_counter < (self.max_cpu - 1):
                         #         stop_counter += 1
@@ -107,7 +107,7 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
             out_chunk = self.result_chunks.get()
             if out_chunk[0]:
                 logger.info(f"PROCESS: writing chunk {out_chunk[1]}")
-                out_chunk[2].to_csv(self.output_file_name, mode='a', index=False)
+                out_chunk[2].to_csv(self.output_file_name, mode='a')
             else:
                 if stop_counter < (self.max_cpu - 1):
                     stop_counter += 1

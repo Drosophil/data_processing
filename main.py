@@ -3,8 +3,8 @@ from mpp import MolecularPropertiesProcessor, MolecularPropertiesProcessorIO
 if __name__ == '__main__':
     # parallel model from the lectures
     mpp_instance = MolecularPropertiesProcessor(
-        input_file_path="sample.csv",
-        output_file_name="output.csv",
+        input_file_path="Practice/Practice/HUGE_Data_Set.csv",
+        output_file_name="output-1.csv",
         smiles_column="clean_smiles",
         molecule_id_column="inchikey",
         hyperthreading=True  # we need real physical cores for the processes
@@ -13,8 +13,8 @@ if __name__ == '__main__':
 
     # reader-workers parallel model for insanely huge files
     mpp_instance = MolecularPropertiesProcessorIO(
-        input_file_path="sample.csv",
-        output_file_name="output.csv",
+        input_file_path="Practice/Practice/HUGE_Data_Set.csv",
+        output_file_name="output-2.csv",
         smiles_column="clean_smiles",
         molecule_id_column="inchikey",
         chunk_size=650,  # 650 lines perform faster on my laptop, it should be adjusted to the system
