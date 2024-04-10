@@ -6,8 +6,6 @@ import pandas as pd
 import numpy as np
 from rdkit.Chem import AllChem, Descriptors
 from mylog import logger  # loading logging configuration
-import math
-
 
 class MoleculeProcessingException(Exception):
     '''Exception class'''
