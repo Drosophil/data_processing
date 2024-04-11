@@ -12,7 +12,8 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
     Really huge file molecular data processing utility
     input parameters: input_file, output_file, smiles_column_name, molecule_id_column_name
     reads the file by chunks.
-    For the very large files that do not fit in memory
+    For the very large files that do not fit in memory.
+    NB: Output file overwrites any existing file with the same name.
     '''
     def __init__(
             self,
@@ -44,7 +45,6 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
         self.input_chunks = Queue()   #  communication between processes
         self.result_chunks = Queue()
 
-#        self.mols_df = pd.read_csv(input_file_path)  # this class reads the file prior to computing
 
     @staticmethod
     def _column_finder(chunk_df: pd.DataFrame, match_str):
@@ -93,13 +93,15 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
                         out_chunk = self.result_chunks.get()
                         if out_chunk[0]:
                             logger.info(f"PROCESS: writing chunk {out_chunk[1]}")
-                            out_chunk[2].to_csv(self.output_file_name, mode= 'a')
-                        # else:
-                        #     if stop_counter < (self.max_cpu - 1):
-                        #         stop_counter += 1
-                        #         logger.info(f"PROCESS: STOP sign {stop_counter} received.")
+                            if out_chunk[1] == 1:  # if this is the first chunk, make new file with header
+                                out_chunk[2].to_csv(self.output_file_name)  #  open new file, overwrite existing
+                            else:
+                                # no column names on append
+                                out_chunk[2].to_csv(self.output_file_name, mode="a", header=False)
+
         logger.info("Finished reading the input file. Stopping worker processes...")
         logger.info(f"PROCESS: Issuing {self.max_cpu - 1} STOP signs...")
+
         for i in range(0, self.max_cpu - 1):
             self.input_chunks.put((0,0,0,0))  # stop signs for all workers
         # for this loop a timeout could be a nice option
@@ -107,7 +109,11 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
             out_chunk = self.result_chunks.get()
             if out_chunk[0]:
                 logger.info(f"PROCESS: writing chunk {out_chunk[1]}")
-                out_chunk[2].to_csv(self.output_file_name, mode='a')
+                if out_chunk[1] == 1:  # if this is the first chunk, make new file with header
+                    out_chunk[2].to_csv(self.output_file_name)  # open new file, overwrite existing
+                else:
+                    # no column names on append
+                    out_chunk[2].to_csv(self.output_file_name, mode="a", header=False)
             else:
                 if stop_counter < (self.max_cpu - 1):
                     stop_counter += 1
@@ -133,13 +139,16 @@ class MolecularPropertiesProcessorIO(MolecularPropertiesProcessor):
                         return output_mol
                     else:
                         logger.warning(f"DATA: chunk {chunk[1]} -> bad SMILES {input_s}")
-                        return output_mol
+                        return None
 
                 chunk[2]["mol"] = chunk[2][chunk[3]].apply(lambda s: get_mol_from_smiles_and_verify(s))
 
                 #  logger.info("PROCESS: Migrated to molecules")
 
-                chunk[2].dropna(inplace=True)  # drop rows with None values in Mol column
+                #  drop None should be done by only "mol" column
+
+                chunk[2].dropna(subset=["mol"], inplace=True)  # drop rows with None values in Mol column
+
 
                 mol_props_funcs = {
                     "Molecular weight": lambda mol: Descriptors.MolWt(mol),

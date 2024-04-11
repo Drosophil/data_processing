@@ -17,6 +17,7 @@ class MolecularPropertiesProcessor:
     reads the whole file prior to computing
     if hyperthreading=True then computes on cpu_count()//2 cores, to compensate the hyperthreading on intel CPUs
     (otherwise half of processes will simply wait for the available physical core slowing down the computation).
+    NB: Output file overwrites any existing file with the same name.
     '''
     def __init__(
             self,
@@ -74,13 +75,14 @@ class MolecularPropertiesProcessor:
                 return output_mol
             else:
                 logger.warning(f"DATA: chunk {chunk_id} -> bad SMILES {input_s}")
-                return output_mol
+                return None
 
         chunk_df["mol"] = chunk_df[self.smiles_col].apply(lambda s: get_mol_from_smiles_and_verify(s))
 
         #  logger.info("PROCESS: Migrated to molecules")
+        #  drop None should only be done by "mol" column
 
-        chunk_df.dropna(inplace=True)  # drop rows with None values in Mol column
+        chunk_df.dropna(subset=["mol"], inplace=True)  # drop rows with None values in Mol column
 
         mol_props_funcs = {
             "Molecular weight": lambda mol: Descriptors.MolWt(mol),
@@ -130,7 +132,6 @@ class MolecularPropertiesProcessor:
         logger.info(f"Max CPUs = {max_amount_of_p}")
 
         amount_of_chunk_df = max_amount_of_p  # one core left for the main process, it seems faster like that
-        # math.ceil(len(self.mols_df) / const_size_of_chunks)
 
         if amount_of_chunk_df > max_amount_of_p:
             amount_of_chunk_df = max_amount_of_p

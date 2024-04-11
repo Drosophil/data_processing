@@ -22,10 +22,11 @@ molecule_id_column - a column containing unique ID's.
 hyperthreading - True is system CPU has hyperthreading, False if it has not. Important for speed adjustment,
 it is better to operate on physical cores, not hyperthreaded abstract ones.
 Int the output there should be no duplicates.
+NB: Output file is opened in append mode, so if it exists, it will grow in size.
 
 2. MolecularPropertiesProcessorIO class.
 This class should be used if the size of an input file is unknown or it is too large to load in memory.
-Class does not return pandas DataFrame, but saves transformed data in output csv file. Read input file by chunks and 
+Class does not return pandas DataFrame, but saves transformed data in output csv file. Reads input file by chunks and 
 implements simultaneous file I/O and transforming the data.
 Drops duplicates only within chunks, so some duplicates can be in the output.
 Usage:
@@ -42,8 +43,11 @@ Usage:
 process_data() method starts the transformation.
 chunk_size is a chunk reading size in lines.
 Other params are the same as for MolecularPropertiesProcessor class.
+NB: Output file is opened in append mode, so if it exists, it will grow in size.
 
 Both classes do logging, they produce 3 log files:
 data_log.log  contains messages regarding data issues (like bad SMILES)
 process_log.log contains messages about multiprocessing.
 mainlog.log is a root logger output, root also reflects on console.
+Please note that the results are not sorted, 
+so these two classes may produce for the same input the same results, but in a different order.
